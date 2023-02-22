@@ -3,7 +3,6 @@ package subscriber
 import (
 	"bytes"
 	"encoding/gob"
-	"log"
 	"net"
 
 	"github.com/Saf1u/pubsubshared/pubsubtypes"
@@ -13,6 +12,7 @@ type SuscriberClient struct {
 	con    net.Conn
 	id     int
 	buffer []byte
+	topic  string
 }
 
 func RegisterSuscriber(address string, topic string) *SuscriberClient {
@@ -33,7 +33,7 @@ func RegisterSuscriber(address string, topic string) *SuscriberClient {
 		panic(err)
 	}
 
-	subs := &SuscriberClient{con: conn, buffer: make([]byte, 1024)}
+	subs := &SuscriberClient{con: conn, buffer: make([]byte, 1024), topic: topic}
 	_, err = conn.Write(length)
 	if err != nil {
 		panic(err)
@@ -56,10 +56,26 @@ func (s *SuscriberClient) read() *pubsubtypes.Message {
 	return msg
 }
 
-func (s *SuscriberClient) Read() {
-	for {
-		msg := s.read()
-		log.Println("\u001b[32m", "Message:", (*msg).Content)
+func (s *SuscriberClient) Close() {
+	msg := &pubsubtypes.Message{
+		Id:    s.id,
+		Type:  pubsubtypes.CLOSE_CONN,
+		Topic: s.topic,
 	}
+	data := make([]byte, 0, 1024)
+	buffer := bytes.NewBuffer(data)
+	encoder := gob.NewEncoder(buffer)
+	err := encoder.Encode(*msg)
+	if err != nil {
+		panic(err)
+	}
+	_, err = s.con.Write(buffer.Bytes())
+	if err != nil {
+		panic(err)
+	}
+}
 
+func (s *SuscriberClient) Read() *pubsubtypes.Message {
+	msg := s.read()
+	return msg
 }
