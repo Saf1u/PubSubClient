@@ -3,6 +3,9 @@ package subscriber
 import (
 	"bytes"
 	"encoding/gob"
+	"errors"
+	"io"
+	"log"
 	"net"
 
 	"github.com/Saf1u/pubsubshared/pubsubtypes"
@@ -44,12 +47,16 @@ func RegisterSuscriber(address string, topic string) *SuscriberClient {
 
 }
 func (s *SuscriberClient) read() *pubsubtypes.Message {
-	s.con.Read(s.buffer[0:1])
+	_, err := s.con.Read(s.buffer[0:1])
+	if err != nil && errors.Is(err, io.EOF) {
+		log.Println("broker closed")
+		return nil
+	}
 	s.con.Read(s.buffer[1 : s.buffer[0]+1])
 	reader := bytes.NewReader(s.buffer[1 : s.buffer[0]+1])
 	decoder := gob.NewDecoder(reader)
 	msg := &pubsubtypes.Message{}
-	err := decoder.Decode(msg)
+	err = decoder.Decode(msg)
 	if err != nil {
 		panic(err)
 	}
